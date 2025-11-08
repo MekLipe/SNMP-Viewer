@@ -1,42 +1,46 @@
 package snmpclient;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.io.*;
+import java.net.Socket;
 
 public class SNMPClient {
 
     private final String servidor;
+    private final int porta;
+    private final String usuario;
+    private final String senha;
 
-    public SNMPClient(String servidor) {
+    // ✅ Construtor que o UI chama
+    public SNMPClient(String servidor, int porta, String usuario, String senha) {
         this.servidor = servidor;
+        this.porta = porta;
+        this.usuario = usuario;
+        this.senha = senha;
     }
 
-    public String consultar(String user, String pass, String oid) {
-        try {
-            String urlStr = servidor + "?user=" + user + "&pass=" + pass + "&oid=" + oid;
-            URL url = new URL(urlStr);
-            HttpURLConnection conexao = (HttpURLConnection) url.openConnection();
-            conexao.setRequestMethod("GET");
+    // ✅ Método que envia o OID e recebe a resposta
+    public String get(String oid) throws IOException {
+        try (Socket socket = new Socket(servidor, porta);
+             BufferedWriter out = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream()));
+             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            int codigo = conexao.getResponseCode();
-            if (codigo != 200) {
-                return "Erro: " + codigo;
-            }
+            // Requisição HTTP completa — incluindo cabeçalho e linha vazia no fim
+            String request = "GET /?user=" + usuario + "&pass=" + senha + "&oid=" + oid + " HTTP/1.1\r\n" +
+                    "Host: " + servidor + "\r\n" +
+                    "Connection: close\r\n" +
+                    "\r\n";
 
-            BufferedReader in = new BufferedReader(new InputStreamReader(conexao.getInputStream()));
-            StringBuilder resposta = new StringBuilder();
+            out.write(request);
+            out.flush();
+
+            // ✅ Recebe a resposta do servidor
+            StringBuilder response = new StringBuilder();
             String linha;
             while ((linha = in.readLine()) != null) {
-                resposta.append(linha);
+                response.append(linha).append("\n");
             }
-            in.close();
 
-            return resposta.toString();
-
-        } catch (Exception e) {
-            return "Erro: " + e.getMessage();
+            return response.toString();
         }
     }
 }
